@@ -28,6 +28,7 @@ print(opt)
 
 cuda = True if torch.cuda.is_available() else False
 
+#git的测试
 
 # Loss function
 adversarial_loss = torch.nn.BCELoss()
