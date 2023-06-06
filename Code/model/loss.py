@@ -22,7 +22,7 @@ class ContentLoss(nn.Module):
         pixel_loss = (img_fu - img_ir).square().mean()
         return self._lambda * gradient_loss + pixel_loss
 
-#aaaa
+
 class ContentLoss1(nn.Module):
     def __init__(self, _lambda):
         super(ContentLoss, self).__init__()
