@@ -24,6 +24,12 @@ class ContentLoss(nn.Module):
 
 
 class ContentLoss1(nn.Module):
+    """
+    fusion-gan 这篇论文中为generator定义的损失函数，我个人的pytorch实现。
+    目的是使生成的图像的像素尽可能接近红外图像，同时使图像的梯度接近可见光图像。
+    梯度使用的是laplace算符实现的。
+    """
+
     def __init__(self, _lambda):
         super(ContentLoss, self).__init__()
         self._lambda = _lambda
