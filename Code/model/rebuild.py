@@ -11,50 +11,11 @@ from torchvision.utils import save_image
 
 from Code.data.mydataset import MyDataset
 from Code.model import ops
+from Code.model.backbones import Discriminator_FusionGan, AE_YGC
 from Code.model.losses import ContentLoss, ContentLoss1
 
 
-class AE1(nn.Module):
-    def __init__(self, En_Vi, En_Ir, De):
-        super(AE1, self).__init__()
-        self.encoder_vi = En_Vi
-        self.encoder_ir = En_Ir
-        self.decoder = De
-
-    def forward(self, vi_img, ir_img):
-        # 得到特征
-        vi_feature = self.encoder_vi(vi_img)
-        ir_feature = self.encoder_ir(ir_img)
-
-        # 对两份特征进行处理
-        cat_feature = torch.cat([vi_feature, ir_feature], 1)
-
-        img_out = self.decoder(cat_feature)
-        return img_out
-
-class AE2(nn.Module):
-    """
-    两条支路的AE
-    """
-    def __init__(self, En_Vi, En_Ir, De):
-        super(AE2, self).__init__()
-        self.encoder_vi = En_Vi
-        self.encoder_ir = En_Ir
-        self.decoder = De
-
-    def forward(self, vi_img, ir_img):
-        # 得到特征
-        vi_feature = self.encoder_vi(vi_img)
-        ir_feature = self.encoder_ir(ir_img)
-
-        # 对两份特征进行处理
-        cat_feature = torch.cat([vi_feature, ir_feature], 1)
-
-        img_out = self.decoder(cat_feature)
-        return img_out
-
-
-class MyFusioner:
+class Rebuilder:
     def __init__(self, net_path=None, **kwargs):
         self.cfg = self.parse_args(**kwargs)
 
@@ -63,9 +24,10 @@ class MyFusioner:
         self.device = torch.device('cuda:0' if self.cuda else 'cpu')
 
         # 准备模型
-        self.AE = AE()
-        self.D = Discriminator()
-        ops.init_weights(self.AE)
+        self.AE = AE_YGC()
+        self.D = Discriminator_FusionGan()
+        ops.init_weights(self.En)
+        ops.init_weights(self.De)
         ops.init_weights(self.D)
 
         # 加载checkpoint
@@ -83,7 +45,7 @@ class MyFusioner:
         self.optimizer_D = optim.Adam(self.net.discriminator.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
-    def train_step(self, vi_imgs, ir_imgs, epoch, backward=True):
+    def train_step(self, vi_imgs, epoch, backward=True):
         self.net.train(backward)
 
         # 生成真假图片的标签
@@ -91,7 +53,7 @@ class MyFusioner:
         fake_label = torch.zeros(vi_imgs.shape[0]).to(self.device)
 
         # 生成图片
-        gen_imgs = self.AE(vi_imgs, ir_imgs)
+        gen_imgs = self.AE(vi_imgs)
 
         with torch.set_grad_enabled(backward):
             # 定义辨别器损失
@@ -100,9 +62,7 @@ class MyFusioner:
             fake_loss = ad_loss(self.D(gen_imgs.detach()), fake_label)
             d_loss = (real_loss + fake_loss) / 2
             # 定义生成器(AE)损失
-            content_loss = ContentLoss1(5)
-            ct_g_loss = content_loss(vi_imgs, ir_imgs, gen_imgs)
-            g_loss = ct_g_loss + ad_loss(self.D(gen_imgs.detach()), real_label)
+            g_loss = ad_loss(self.D(gen_imgs.detach()), real_label)
 
             # 先训练生成器
             self.optimizer_AE.zero_grad()
@@ -118,11 +78,10 @@ class MyFusioner:
                 save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % epoch + 1, nrow=5, normalize=True)
                 save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % epoch + 1, nrow=5, normalize=True)
 
-            return ct_g_loss.item(), g_loss.item(), d_loss.item()
+            return g_loss.item(), d_loss.item()
 
     @torch.enable_grad()
-    def train_over(self, seqs, val_seqs=None,
-                   save_dir='pretrained'):
+    def train_over(self, save_dir='../checkpoint'):
         self.net.train()
 
         # 准备模型储存路径
@@ -143,17 +102,17 @@ class MyFusioner:
 
         # 训练
         for epoch in range(self.cfg.epoch_num):
-            for i, (vi_imgs, ir_imgs) in enumerate(dataloader):
-                (ct_g_loss, g_loss, d_loss) = self.train_step(vi_imgs, ir_imgs)
-                print('Epoch: {} [{}/{}] CT_G_Loss: {:.5f} G_Loss: {:.5f} D_Loss: {:.5f}'.format(
-                    epoch + 1, i + 1, len(dataloader), ct_g_loss, g_loss, d_loss))
+            for i, (vi_imgs, _) in enumerate(dataloader):
+                (g_loss, d_loss) = self.train_step(vi_imgs)
+                print('Epoch: {} [{}/{}] G_Loss: {:.5f} D_Loss: {:.5f}'.format(
+                    epoch + 1, i + 1, len(dataloader), g_loss, d_loss))
                 sys.stdout.flush()
 
             if (epoch + 1) % 5 == 0:
                 # 保存模型
-                encoder_path = os.path.join(save_dir, 'fusion_gan_En_e%d.pth' % (epoch + 1))
-                decoder_path = os.path.join(save_dir, 'fusion_gan_De_e%d.pth' % (epoch + 1))
-                discriminator_path = os.path.join(save_dir, 'fusion_gan_Dis_e%d.pth' % (epoch + 1))
+                encoder_path = os.path.join(save_dir, 'YGC_En_e%d.pth' % (epoch + 1))
+                decoder_path = os.path.join(save_dir, 'YGC_De_e%d.pth' % (epoch + 1))
+                discriminator_path = os.path.join(save_dir, 'YGC_Dis_e%d.pth' % (epoch + 1))
                 torch.save(self.net.state_dict(), encoder_path)
                 torch.save(self.net.state_dict(), decoder_path)
                 torch.save(self.net.state_dict(), discriminator_path)
@@ -164,8 +123,11 @@ class MyFusioner:
             'epoch_num': 200,
             'batch_size': 32,
             'num_workers': 32,
+            'img_size': 32,
+            # 与优化相关的参数
             'lr': 0.0002,
-            'img_size': 32}
+            'b1': 0.5,
+            'b2': 0.999}
 
         for key, val in kwargs.items():
             if key in cfg:

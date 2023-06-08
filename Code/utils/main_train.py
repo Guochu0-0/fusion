@@ -10,7 +10,7 @@ import torch
 
 from Code.data.mydataset import MyDataset
 from Code.model.fusiongan import Generator, Discriminator, weights_init_normal
-from Code.model.loss import ContentLoss
+from Code.model.losses import ContentLoss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
