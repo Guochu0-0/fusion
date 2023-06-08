@@ -31,7 +31,7 @@ class ContentLoss1(nn.Module):
     """
 
     def __init__(self, _lambda):
-        super(ContentLoss, self).__init__()
+        super(ContentLoss1, self).__init__()
         self._lambda = _lambda
 
     def forward(self, img_vi, img_ir, img_fu):

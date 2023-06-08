@@ -16,7 +16,7 @@ from Code.model.losses import ContentLoss, ContentLoss1
 
 
 class Rebuilder:
-    def __init__(self, net_path=None, **kwargs):
+    def __init__(self, AE_path=None, D_path=None, **kwargs):
         self.cfg = self.parse_args(**kwargs)
 
         # GPU
@@ -26,28 +26,30 @@ class Rebuilder:
         # 准备模型
         self.AE = AE_YGC()
         self.D = Discriminator_FusionGan()
-        ops.init_weights(self.En)
-        ops.init_weights(self.De)
+        ops.init_weights(self.AE)
         ops.init_weights(self.D)
 
         # 加载checkpoint
-        if net_path is not None:
-            self.net.load_state_dict(torch.load(
-                net_path, map_location=lambda storage, loc: storage))
-        self.net = self.net.to(self.device)
+        if AE_path is not None:
+            self.AE.load_state_dict(torch.load(
+                AE_path, map_location=lambda storage, loc: storage))
+        if D_path is not None:
+            self.D.load_state_dict(torch.load(
+                D_path, map_location=lambda storage, loc: storage))
+        self.AE = self.AE.to(self.device)
 
         # 定义损失函数
-        self.AE_Loss = ContentLoss1()
+        self.AE_Loss = ContentLoss1(5)
         self.Ad_Loss = torch.nn.BCELoss()
 
         # 定义优化器
-        self.optimizer_AE = optim.Adam(self.net.AE.parameters(), lr=self.cfg.lr, betas=(self.cfg.b1, self.cfg.b2))
-        self.optimizer_D = optim.Adam(self.net.discriminator.parameters(), lr=self.cfg.lr,
+        self.optimizer_AE = optim.Adam(self.AE.parameters(), lr=self.cfg.lr, betas=(self.cfg.b1, self.cfg.b2))
+        self.optimizer_D = optim.Adam(self.D.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
     def train_step(self, vi_imgs, epoch, backward=True):
-        self.net.train(backward)
-
+        self.AE.train(backward)
+        self.D.train(backward)
         # 生成真假图片的标签
         real_label = torch.ones(vi_imgs.shape[0]).to(self.device)
         fake_label = torch.zeros(vi_imgs.shape[0]).to(self.device)
@@ -82,7 +84,8 @@ class Rebuilder:
 
     @torch.enable_grad()
     def train_over(self, save_dir='../checkpoint'):
-        self.net.train()
+        self.AE.train()
+        self.D.train()
 
         # 准备模型储存路径
         if not os.path.exists(save_dir):
@@ -103,26 +106,25 @@ class Rebuilder:
         # 训练
         for epoch in range(self.cfg.epoch_num):
             for i, (vi_imgs, _) in enumerate(dataloader):
-                (g_loss, d_loss) = self.train_step(vi_imgs)
+                vi_imgs = vi_imgs.to(self.device)
+                (g_loss, d_loss) = self.train_step(vi_imgs, epoch)
                 print('Epoch: {} [{}/{}] G_Loss: {:.5f} D_Loss: {:.5f}'.format(
                     epoch + 1, i + 1, len(dataloader), g_loss, d_loss))
                 sys.stdout.flush()
 
             if (epoch + 1) % 5 == 0:
                 # 保存模型
-                encoder_path = os.path.join(save_dir, 'YGC_En_e%d.pth' % (epoch + 1))
-                decoder_path = os.path.join(save_dir, 'YGC_De_e%d.pth' % (epoch + 1))
-                discriminator_path = os.path.join(save_dir, 'YGC_Dis_e%d.pth' % (epoch + 1))
-                torch.save(self.net.state_dict(), encoder_path)
-                torch.save(self.net.state_dict(), decoder_path)
-                torch.save(self.net.state_dict(), discriminator_path)
+                AE_path = os.path.join(save_dir, 'YGC_AE_e%d.pth' % (epoch + 1))
+                D_path = os.path.join(save_dir, 'YGC_Dis_e%d.pth' % (epoch + 1))
+                torch.save(self.AE.state_dict(), AE_path)
+                torch.save(self.D.state_dict(), D_path)
 
     def parse_args(self, **kwargs):
         # 参数设置
         cfg = {
             'epoch_num': 200,
             'batch_size': 32,
-            'num_workers': 32,
+            'num_workers': 6,
             'img_size': 32,
             # 与优化相关的参数
             'lr': 0.0002,

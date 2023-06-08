@@ -80,7 +80,8 @@ class ResidualBlock(nn.Module):
         if use_1x1conv:
             self.conv3 = nn.Conv2d(input_channels, num_channels,
                                    kernel_size=1, stride=strides)
-
+        else:
+            self.conv3 = None
     def forward(self, x):
         residual = self.conv1(x)
         residual = self.bn1(residual)
@@ -100,7 +101,7 @@ class Encoder_YGC(nn.Module):
     def __init__(self):
         super(Encoder_YGC, self).__init__()
         self.block1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=9, padding=4),
+            nn.Conv2d(1, 64, kernel_size=9, padding=4),
             nn.PReLU()
         )
         self.block2 = ResidualBlock(64, 64)
@@ -148,10 +149,12 @@ class Decoder_YGC(nn.Module):
 
 class AE_YGC(nn.Module):
     def __init__(self):
-        super(AE_YGC).__init__()
+        super(AE_YGC, self).__init__()
         self.E = Encoder_YGC()
         self.D = Decoder_YGC()
 
     def forward(self, x):
         z = self.E(x)
         out = self.D(z)
+
+        return out
