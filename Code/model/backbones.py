@@ -148,6 +148,27 @@ class Decoder_YGC(nn.Module):
 
         return block6
 
+class Decoder_YGC_V2(nn.Module):
+    """
+    解码器，容量设小一点
+    """
+
+    def __init__(self):
+        super(Decoder_YGC, self).__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1),
+            nn.Tanh(),
+        )
+    def forward(self, x):
+        block1 = self.block1(x)
+        block2 = self.block2(block1)
+        block3 = self.block3(block2)
+        block4 = self.block4(block3)
+        block5 = self.block5(block4)
+        block6 = self.block6(block5)
+
+        return block6
+
 class AE_YGC(nn.Module):
     def __init__(self):
         super(AE_YGC, self).__init__()
