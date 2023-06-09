@@ -160,14 +160,8 @@ class Decoder_YGC_V2(nn.Module):
             nn.Tanh(),
         )
     def forward(self, x):
-        block1 = self.block1(x)
-        block2 = self.block2(block1)
-        block3 = self.block3(block2)
-        block4 = self.block4(block3)
-        block5 = self.block5(block4)
-        block6 = self.block6(block5)
-
-        return block6
+        y = self.net(x)
+        return y
 
 class AE_YGC(nn.Module):
     def __init__(self):
