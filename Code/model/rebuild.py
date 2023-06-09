@@ -84,11 +84,11 @@ class Rebuilder:
             self.optimizer_D.step()
 
             # 计算精度
-            Acc = accuracy(self.D(gen_imgs), 0) + accuracy(self.D(vi_imgs), 1)
+            Acc = accuracy(self.D(gen_imgs), 0) + accuracy(self.D(vi_imgs), 1, self.device)
             metric.add(Acc/2, vi_imgs.shape[0])
 
             # 保存生成的图片
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 50 == 0:
                 save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
                 save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
 
@@ -140,14 +140,14 @@ class Rebuilder:
                     epoch + 1, i + 1, len(train_dataloader), g_loss, d_loss))
                 sys.stdout.flush()
 
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 50 == 0:
                 # 保存模型
                 AE_path = os.path.join(save_dir, 'YGC_AE_e%d.pth' % (epoch + 1))
                 D_path = os.path.join(save_dir, 'YGC_Dis_e%d.pth' % (epoch + 1))
                 torch.save(self.AE.state_dict(), AE_path)
                 torch.save(self.D.state_dict(), D_path)
 
-            test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader)
+            test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader, self.device)
             animator.add(epoch + 1, (metric[0]/metric[1], test_acc))
 
         plt.show()
@@ -155,7 +155,7 @@ class Rebuilder:
     def parse_args(self, **kwargs):
         # 参数设置
         cfg = {
-            'epoch_num': 200,
+            'epoch_num': 2000,
             'batch_size': 32,
             'num_workers': 6,
             # 与优化相关的参数

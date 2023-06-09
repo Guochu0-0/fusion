@@ -75,26 +75,23 @@ class Accumulator:
         return self.data[idx]
 
 
-def accuracy(pred_y, label):
+def accuracy(pred_y, label, device):
     """
     计算正确的数量
     由于是soft label，0~0.3视为0，0.7~1视为1
     自己随便设置的
 
-    :param pred_y: 辨别器产生的label
-    :param label: 是生成图片还是真实图片
-    :return: 训练数据的预测精度
     """
 
     if label:
-        cmp = pred_y >= torch.FloatTensor(pred_y.shape).fill_(0.7)
+        cmp = pred_y >= torch.FloatTensor(pred_y.shape).fill_(0.7).to(device)
 
     else:
-        cmp = pred_y <= torch.FloatTensor(pred_y.shape).fill_(0.3)
+        cmp = pred_y <= torch.FloatTensor(pred_y.shape).fill_(0.3).to(device)
     return float(cmp.sum())
 
 
-def evaluate_accuracy(AE, D, data_iter):
+def evaluate_accuracy(AE, D, data_iter, device):
     """计算在指定数据集上模型的精度"""
     if isinstance(AE, torch.nn.Module):
         AE.eval()  # 将模型设置为评估模式
@@ -104,6 +101,6 @@ def evaluate_accuracy(AE, D, data_iter):
     metric = Accumulator(2)  # 正确预测数、预测总数
     with torch.no_grad():
         for i, (vi_imgs, _) in enumerate(data_iter):
-            metric.add(accuracy(D(vi_imgs), 1), vi_imgs.shape[0])
-            metric.add(accuracy(D(AE(vi_imgs)), 1), vi_imgs.shape[0])
+            metric.add(accuracy(D(vi_imgs), 1, device), vi_imgs.shape[0])
+            metric.add(accuracy(D(AE(vi_imgs)), 1, device), vi_imgs.shape[0])
     return metric[0] / metric[1]
