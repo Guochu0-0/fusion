@@ -154,7 +154,7 @@ class Decoder_YGC_V2(nn.Module):
     """
 
     def __init__(self):
-        super(Decoder_YGC, self).__init__()
+        super(Decoder_YGC_V2, self).__init__()
         self.net = nn.Sequential(
             nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1),
             nn.Tanh(),
