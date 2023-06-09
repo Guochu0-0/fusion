@@ -67,8 +67,8 @@ class Rebuilder:
             # 定义生成器(AE)损失
             pixel_loss = PixelLoss()
             # g_loss = ad_loss(self.D(gen_imgs), real_label) + pixel_loss(gen_imgs, vi_imgs)
-            # g_loss = ad_loss(self.D(gen_imgs)
-            g_loss = pixel_loss(gen_imgs, vi_imgs)
+            g_loss = ad_loss(self.D(gen_imgs), real_label)
+            #g_loss = pixel_loss(gen_imgs, vi_imgs)
 
             # 先训练生成器
             self.optimizer_AE.zero_grad()
