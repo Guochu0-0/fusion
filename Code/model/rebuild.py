@@ -12,7 +12,7 @@ from torchvision.utils import save_image
 from Code.data.mydataset import MyDataset
 from Code.model import ops
 from Code.model.backbones import Discriminator_FusionGan, AE_YGC
-from Code.model.losses import ContentLoss, ContentLoss1
+from Code.model.losses import ContentLoss, ContentLoss1, PixelLoss
 
 
 class Rebuilder:
@@ -37,6 +37,7 @@ class Rebuilder:
             self.D.load_state_dict(torch.load(
                 D_path, map_location=lambda storage, loc: storage))
         self.AE = self.AE.to(self.device)
+        self.D = self.D.to(self.device)
 
         # 定义损失函数
         self.AE_Loss = ContentLoss1(5)
@@ -51,20 +52,23 @@ class Rebuilder:
         self.AE.train(backward)
         self.D.train(backward)
         # 生成真假图片的标签
-        real_label = torch.ones(vi_imgs.shape[0]).to(self.device)
-        fake_label = torch.zeros(vi_imgs.shape[0]).to(self.device)
+        real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.2*torch.randn(vi_imgs.shape[0], 1)).to(self.device)
+        fake_label = (torch.zeros(vi_imgs.shape[0], 1) + 0.3*torch.rand(vi_imgs.shape[0], 1)).to(self.device)
 
         # 生成图片
         gen_imgs = self.AE(vi_imgs)
 
         with torch.set_grad_enabled(backward):
             # 定义辨别器损失
-            ad_loss = self.Ad_Loss()
+            ad_loss = self.Ad_Loss
             real_loss = ad_loss(self.D(vi_imgs), real_label)
             fake_loss = ad_loss(self.D(gen_imgs.detach()), fake_label)
             d_loss = (real_loss + fake_loss) / 2
             # 定义生成器(AE)损失
-            g_loss = ad_loss(self.D(gen_imgs.detach()), real_label)
+            pixel_loss = PixelLoss()
+            # g_loss = ad_loss(self.D(gen_imgs), real_label) + pixel_loss(gen_imgs, vi_imgs)
+            # g_loss = ad_loss(self.D(gen_imgs)
+            g_loss = pixel_loss(gen_imgs, vi_imgs)
 
             # 先训练生成器
             self.optimizer_AE.zero_grad()
@@ -77,13 +81,13 @@ class Rebuilder:
 
             # 保存生成的图片
             if (epoch + 1) % 5 == 0:
-                save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % epoch + 1, nrow=5, normalize=True)
-                save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % epoch + 1, nrow=5, normalize=True)
+                save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
+                save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
 
             return g_loss.item(), d_loss.item()
 
     @torch.enable_grad()
-    def train_over(self, save_dir='../checkpoint'):
+    def train_over(self, save_dir='../../checkpoint'):
         self.AE.train()
         self.D.train()
 
@@ -125,7 +129,6 @@ class Rebuilder:
             'epoch_num': 200,
             'batch_size': 32,
             'num_workers': 6,
-            'img_size': 32,
             # 与优化相关的参数
             'lr': 0.0002,
             'b1': 0.5,

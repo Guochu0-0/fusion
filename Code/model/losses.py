@@ -46,3 +46,13 @@ class ContentLoss1(nn.Module):
 
         out = F.conv2d(img, laplace_filter, stride=2, padding=1)
         return out
+
+class PixelLoss(nn.Module):
+    def __init__(self):
+        super(PixelLoss, self).__init__()
+
+    def forward(self, gen_img, origin_img):
+        pixel_loss = (origin_img - gen_img).square().mean()
+        pixel_loss.requires_grad_(True)
+        return pixel_loss
+
