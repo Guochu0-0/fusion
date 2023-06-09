@@ -135,7 +135,8 @@ class Decoder_YGC(nn.Module):
         self.block5 = ResidualBlock(64, 64)
         self.block6 = nn.Sequential(
             nn.PReLU(),
-            nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1)
+            nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1),
+            nn.Tanh(),
         )
     def forward(self, x):
         block1 = self.block1(x)

@@ -54,7 +54,7 @@ class Rebuilder:
         self.AE.train(backward)
         self.D.train(backward)
         # 生成真假图片的标签
-        real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.2 * torch.randn(vi_imgs.shape[0], 1)).to(self.device)
+        real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.1 * torch.randn(vi_imgs.shape[0], 1)).to(self.device)
         fake_label = (torch.zeros(vi_imgs.shape[0], 1) + 0.3 * torch.rand(vi_imgs.shape[0], 1)).to(self.device)
 
         # 生成图片
