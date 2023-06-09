@@ -101,6 +101,7 @@ def evaluate_accuracy(AE, D, data_iter, device):
     metric = Accumulator(2)  # 正确预测数、预测总数
     with torch.no_grad():
         for i, (vi_imgs, _) in enumerate(data_iter):
+            vi_imgs = vi_imgs.to(device)
             metric.add(accuracy(D(vi_imgs), 1, device), vi_imgs.shape[0])
             metric.add(accuracy(D(AE(vi_imgs)), 1, device), vi_imgs.shape[0])
     return metric[0] / metric[1]

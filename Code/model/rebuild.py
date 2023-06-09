@@ -50,7 +50,6 @@ class Rebuilder:
         self.optimizer_D = optim.Adam(self.D.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
-
     def train_step(self, vi_imgs, epoch, metric, backward=True):
         self.AE.train(backward)
         self.D.train(backward)
@@ -58,17 +57,12 @@ class Rebuilder:
         real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.2 * torch.randn(vi_imgs.shape[0], 1)).to(self.device)
         fake_label = (torch.zeros(vi_imgs.shape[0], 1) + 0.3 * torch.rand(vi_imgs.shape[0], 1)).to(self.device)
 
-
         # 生成图片
         gen_imgs = self.AE(vi_imgs)
 
         with torch.set_grad_enabled(backward):
-            # 定义辨别器损失
-            ad_loss = self.Ad_Loss
-            real_loss = ad_loss(self.D(vi_imgs), real_label)
-            fake_loss = ad_loss(self.D(gen_imgs.detach()), fake_label)
-            d_loss = (real_loss + fake_loss) / 2
             # 定义生成器(AE)损失
+            ad_loss = self.Ad_Loss
             pixel_loss = PixelLoss()
             # g_loss = ad_loss(self.D(gen_imgs), real_label) + pixel_loss(gen_imgs, vi_imgs)
             g_loss = ad_loss(self.D(gen_imgs), real_label)
@@ -78,14 +72,18 @@ class Rebuilder:
             self.optimizer_AE.zero_grad()
             g_loss.backward()
             self.optimizer_AE.step()
+            # 定义辨别器损失
+            real_loss = ad_loss(self.D(vi_imgs), real_label)
+            fake_loss = ad_loss(self.D(gen_imgs.detach()), fake_label)
+            d_loss = (real_loss + fake_loss) / 2
             # 再训练辨别器
             self.optimizer_D.zero_grad()
             d_loss.backward()
             self.optimizer_D.step()
 
             # 计算精度
-            Acc = accuracy(self.D(gen_imgs), 0) + accuracy(self.D(vi_imgs), 1, self.device)
-            metric.add(Acc/2, vi_imgs.shape[0])
+            Acc = accuracy(self.D(gen_imgs), 0, self.device) + accuracy(self.D(vi_imgs), 1, self.device)
+            metric.add(Acc / 2, vi_imgs.shape[0])
 
             # 保存生成的图片
             if (epoch + 1) % 50 == 0:
@@ -127,7 +125,7 @@ class Rebuilder:
             drop_last=True)
 
         # 可视化
-        animator = Animator(xlabel='epoch', xlim=[1, self.cfg.epoch_num], ylim=[0.3, 0.9],
+        animator = Animator(xlabel='epoch', xlim=[1, self.cfg.epoch_num], ylim=[0.0, 1.0],
                             legend=['train acc', 'test acc'])
         metric = Accumulator(2)
 
@@ -147,10 +145,13 @@ class Rebuilder:
                 torch.save(self.AE.state_dict(), AE_path)
                 torch.save(self.D.state_dict(), D_path)
 
-            test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader, self.device)
-            animator.add(epoch + 1, (metric[0]/metric[1], test_acc))
+            if (epoch + 1) % 20 == 0:
+                test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader, self.device)
+                animator.add(epoch + 1, (metric[0] / metric[1], test_acc))
 
-        plt.show()
+        # 保存图片
+        # plt.show()
+        plt.savefig("../../Result/acc")
 
     def parse_args(self, **kwargs):
         # 参数设置
