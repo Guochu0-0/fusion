@@ -9,6 +9,11 @@ train_txt_path = os.path.join("..", "..", "Data", "train.txt")
 train_ir_dir = os.path.join("..", "..", "Data", "Train_ir")
 train_vi_dir = os.path.join("..", "..", "Data", "Train_vi")
 
+test_txt_path = os.path.join("..", "..", "Data", "test.txt")
+test_ir_dir = os.path.join("..", "..", "Data", "Test_ir")
+test_vi_dir = os.path.join("..", "..", "Data", "Test_vi")
+
+
 def gen_txt(txt_path, ir_img_dir, vi_img_dir):
     f = open(txt_path, 'w')
 
@@ -25,3 +30,4 @@ def gen_txt(txt_path, ir_img_dir, vi_img_dir):
 
 if __name__ == '__main__':
     gen_txt(train_txt_path, train_ir_dir, train_vi_dir)
+    gen_txt(test_txt_path, test_ir_dir, test_vi_dir)

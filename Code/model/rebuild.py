@@ -3,6 +3,7 @@ import sys
 
 import torch
 from h5py.h5d import namedtuple
+from matplotlib import pyplot as plt
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
@@ -13,6 +14,7 @@ from Code.data.mydataset import MyDataset
 from Code.model import ops
 from Code.model.backbones import Discriminator_FusionGan, AE_YGC
 from Code.model.losses import ContentLoss, ContentLoss1, PixelLoss
+from Code.utils.visual import accuracy, Accumulator, Animator, evaluate_accuracy
 
 
 class Rebuilder:
@@ -48,12 +50,14 @@ class Rebuilder:
         self.optimizer_D = optim.Adam(self.D.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
-    def train_step(self, vi_imgs, epoch, backward=True):
+
+    def train_step(self, vi_imgs, epoch, metric, backward=True):
         self.AE.train(backward)
         self.D.train(backward)
         # 生成真假图片的标签
-        real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.2*torch.randn(vi_imgs.shape[0], 1)).to(self.device)
-        fake_label = (torch.zeros(vi_imgs.shape[0], 1) + 0.3*torch.rand(vi_imgs.shape[0], 1)).to(self.device)
+        real_label = (torch.ones(vi_imgs.shape[0], 1) + 0.2 * torch.randn(vi_imgs.shape[0], 1)).to(self.device)
+        fake_label = (torch.zeros(vi_imgs.shape[0], 1) + 0.3 * torch.rand(vi_imgs.shape[0], 1)).to(self.device)
+
 
         # 生成图片
         gen_imgs = self.AE(vi_imgs)
@@ -68,7 +72,7 @@ class Rebuilder:
             pixel_loss = PixelLoss()
             # g_loss = ad_loss(self.D(gen_imgs), real_label) + pixel_loss(gen_imgs, vi_imgs)
             g_loss = ad_loss(self.D(gen_imgs), real_label)
-            #g_loss = pixel_loss(gen_imgs, vi_imgs)
+            # g_loss = pixel_loss(gen_imgs, vi_imgs)
 
             # 先训练生成器
             self.optimizer_AE.zero_grad()
@@ -78,6 +82,10 @@ class Rebuilder:
             self.optimizer_D.zero_grad()
             d_loss.backward()
             self.optimizer_D.step()
+
+            # 计算精度
+            Acc = accuracy(self.D(gen_imgs), 0) + accuracy(self.D(vi_imgs), 1)
+            metric.add(Acc/2, vi_imgs.shape[0])
 
             # 保存生成的图片
             if (epoch + 1) % 5 == 0:
@@ -96,24 +104,40 @@ class Rebuilder:
             os.makedirs(save_dir)
 
         # 准备数据集
-        trans = transforms.ToTensor()
-        dataset = MyDataset(txt_path=r"../../Data/train.txt", transform=trans)
+        train_trans = transforms.ToTensor()
+        train_dataset = MyDataset(txt_path=r"../../Data/train.txt", transform=train_trans)
 
-        dataloader = DataLoader(
-            dataset,
+        train_dataloader = DataLoader(
+            train_dataset,
             batch_size=self.cfg.batch_size,
             shuffle=True,
             num_workers=self.cfg.num_workers,
             pin_memory=self.cuda,
             drop_last=True)
 
+        test_trans = transforms.ToTensor()
+        test_dataset = MyDataset(txt_path=r"../../Data/test.txt", transform=test_trans)
+
+        test_dataloader = DataLoader(
+            test_dataset,
+            batch_size=self.cfg.batch_size,
+            shuffle=True,
+            num_workers=self.cfg.num_workers,
+            pin_memory=self.cuda,
+            drop_last=True)
+
+        # 可视化
+        animator = Animator(xlabel='epoch', xlim=[1, self.cfg.epoch_num], ylim=[0.3, 0.9],
+                            legend=['train acc', 'test acc'])
+        metric = Accumulator(2)
+
         # 训练
         for epoch in range(self.cfg.epoch_num):
-            for i, (vi_imgs, _) in enumerate(dataloader):
+            for i, (vi_imgs, _) in enumerate(train_dataloader):
                 vi_imgs = vi_imgs.to(self.device)
-                (g_loss, d_loss) = self.train_step(vi_imgs, epoch)
+                (g_loss, d_loss) = self.train_step(vi_imgs, epoch, metric)
                 print('Epoch: {} [{}/{}] G_Loss: {:.5f} D_Loss: {:.5f}'.format(
-                    epoch + 1, i + 1, len(dataloader), g_loss, d_loss))
+                    epoch + 1, i + 1, len(train_dataloader), g_loss, d_loss))
                 sys.stdout.flush()
 
             if (epoch + 1) % 5 == 0:
@@ -122,6 +146,11 @@ class Rebuilder:
                 D_path = os.path.join(save_dir, 'YGC_Dis_e%d.pth' % (epoch + 1))
                 torch.save(self.AE.state_dict(), AE_path)
                 torch.save(self.D.state_dict(), D_path)
+
+            test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader)
+            animator.add(epoch + 1, (metric[0]/metric[1], test_acc))
+
+        plt.show()
 
     def parse_args(self, **kwargs):
         # 参数设置
