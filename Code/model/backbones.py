@@ -82,6 +82,7 @@ class ResidualBlock(nn.Module):
                                    kernel_size=1, stride=strides)
         else:
             self.conv3 = None
+
     def forward(self, x):
         residual = self.conv1(x)
         residual = self.bn1(residual)
@@ -120,6 +121,7 @@ class Encoder_YGC(nn.Module):
 
         return block6
 
+
 class Decoder_YGC(nn.Module):
     """
     随便设计一个网络了，由残差块构成
@@ -138,6 +140,7 @@ class Decoder_YGC(nn.Module):
             nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1),
             nn.Tanh(),
         )
+
     def forward(self, x):
         block1 = self.block1(x)
         block2 = self.block2(block1)
@@ -147,6 +150,7 @@ class Decoder_YGC(nn.Module):
         block6 = self.block6(block5)
 
         return block6
+
 
 class Decoder_YGC_V2(nn.Module):
     """
@@ -159,9 +163,11 @@ class Decoder_YGC_V2(nn.Module):
             nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1),
             nn.Tanh(),
         )
+
     def forward(self, x):
         y = self.net(x)
         return y
+
 
 class AE_YGC(nn.Module):
     def __init__(self):

@@ -13,7 +13,7 @@ from torchvision.utils import save_image
 from Code.data.mydataset import MyDataset
 from Code.model import ops
 from Code.model.backbones import Discriminator_FusionGan, AE_YGC
-from Code.model.losses import ContentLoss, ContentLoss1, PixelLoss
+from Code.model.losses import ContentLoss1, PixelLoss
 from Code.utils.visual import accuracy, Accumulator, Animator, evaluate_accuracy
 
 
