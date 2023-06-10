@@ -37,3 +37,22 @@ class PixelLoss(nn.Module):
         pixel_loss = (origin_img - gen_img).square().mean()
         pixel_loss.requires_grad_(True)
         return pixel_loss
+
+class GradientLoss(nn.Module):
+    def __init__(self, device):
+        super(GradientLoss, self).__init__()
+        self.device = device
+        laplace_filter = torch.Tensor([[[[0, -1, 0],
+                                         [-1, 4, -1],
+                                         [0, -1, 0]]]]).to(self.device)
+
+    def _gradient(self, img):
+        laplace_filter = torch.Tensor([[[[0, -1, 0],
+                                         [-1, 4, -1],
+                                         [0, -1, 0]]]]).to(self.device)
+
+        out = F.conv2d(img, laplace_filter, stride=2, padding=1)
+        return out
+
+    def forward(self, vi_img, gen_img):
+        return (self._gradient(gen_img) - self._gradient(vi_img)).square().mean()

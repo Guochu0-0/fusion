@@ -13,7 +13,7 @@ from torchvision.utils import save_image
 from Code.data.mydataset import MyDataset
 from Code.model import ops
 from Code.model.backbones import Generator_FusionGan, Discriminator_FusionGan
-from Code.model.losses import ContentLoss1, PixelLoss
+from Code.model.losses import ContentLoss1, PixelLoss, GradientLoss
 from Code.utils.visual import evaluate_accuracy, Accumulator, Animator, accuracy, evaluate_accuracy1
 
 
@@ -43,8 +43,10 @@ class FusionGan:
         self.D = self.D.to(self.device)
 
         # 定义损失函数
-        self.G_Loss1 = ContentLoss1(5, self.device)
-        #self.Ad_Loss = torch.nn.BCELoss()
+        # self.G_Loss1 = ContentLoss1(5, self.device)
+        self.G_Loss1 = PixelLoss()
+        self.G_Loss2 = GradientLoss(self.device)
+        # self.Ad_Loss = torch.nn.BCELoss()
         self.Ad_Loss = torch.nn.MSELoss()
 
         # 定义优化器
@@ -67,8 +69,10 @@ class FusionGan:
         with torch.set_grad_enabled(backward):
             # 定义生成器损失
             g_ad_loss = self.Ad_Loss(self.D(gen_imgs), real_label)
-            g_ct_loss = self.G_Loss1(vi_imgs, ir_imgs, gen_imgs)
-            g_loss = g_ad_loss + g_ct_loss
+            #g_ct_loss = self.G_Loss1(vi_imgs, ir_imgs, gen_imgs)
+            g_pixel_loss = self.G_Loss1(gen_imgs, ir_imgs)
+            g_gradient_loss = self.G_Loss2(vi_imgs, gen_imgs)
+            g_loss = g_ad_loss + g_pixel_loss + self.cfg.k1*g_gradient_loss
             # 先训练生成器
             self.optimizer_G.zero_grad()
             g_loss.backward()
@@ -93,7 +97,7 @@ class FusionGan:
                 save_image(ir_imgs.data[:25], "../../Data/Ir_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
                 save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
 
-            return g_ct_loss.item(), g_ad_loss.item(), d_loss.item()
+            return g_pixel_loss.item(), g_gradient_loss.item(), g_ad_loss.item(), d_loss.item()
 
     @torch.enable_grad()
     def train_over(self, save_dir='../../checkpoint'):
@@ -138,11 +142,10 @@ class FusionGan:
                 vi_imgs = vi_imgs.to(self.device)
                 ir_imgs = ir_imgs.to(self.device)
 
-                (g_ct_loss, g_ad_loss ,d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
-                print('Epoch: {} [{}/{}] G_CT_Loss: {:.5f} G_AD_Loss: {:.5f} D_Loss: {:.5f}'.format(
-                    epoch + 1, i + 1, len(train_dataloader), g_ct_loss ,g_ad_loss , d_loss))
+                (g_p_loss, g_g_loss, g_ad_loss, d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
+                print('Epoch: {} [{}/{}] G_P_Loss: {:.5f} G_G_Loss: {:.5f} G_AD_Loss: {:.5f} D_Loss: {:.5f}'.format(
+                    epoch + 1, i + 1, len(train_dataloader), g_p_loss, g_g_loss, g_ad_loss, d_loss))
                 sys.stdout.flush()
-
 
             if (epoch + 1) % 50 == 0:
                 # 保存模型
@@ -168,7 +171,9 @@ class FusionGan:
             # 与优化相关的参数
             'lr': 0.0002,
             'b1': 0.5,
-            'b2': 0.999}
+            'b2': 0.999,
+            # pixel loss 和 gradient loss之间的比例
+            'k1': 5,}
 
         for key, val in kwargs.items():
             if key in cfg:
