@@ -147,12 +147,13 @@ class FusionGan:
 
         # 训练
         for epoch in range(self.cfg.epoch_num):
+            # 可视化
+            metric = Accumulator(2)
+
             for i, (vi_imgs, ir_imgs) in enumerate(train_dataloader):
                 vi_imgs = vi_imgs.to(self.device)
                 ir_imgs = ir_imgs.to(self.device)
 
-                # 可视化
-                metric = Accumulator(2)
                 (g_loss, d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
                 print('Epoch: {} [{}/{}] G_Loss: {:.5f} D_Loss: {:.5f}'.format(
                     epoch + 1, i + 1, len(train_dataloader), g_loss, d_loss))

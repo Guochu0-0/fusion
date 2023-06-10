@@ -4,10 +4,12 @@ import sys
 import torch
 from h5py.h5d import namedtuple
 from matplotlib import pyplot as plt
+from tensorboardX import SummaryWriter
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import transforms
+import torchvision.utils as vutils
 from torchvision.utils import save_image
 
 from Code.data.mydataset import MyDataset
@@ -50,6 +52,9 @@ class Rebuilder:
         self.optimizer_D = optim.Adam(self.D.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
+        # 可视化
+        self.writer = SummaryWriter(os.path.join("..", "..", "Results", "rebuild"))
+
     def train_step(self, vi_imgs, epoch, metric, backward=True):
         self.AE.train(backward)
         self.D.train(backward)
@@ -67,11 +72,11 @@ class Rebuilder:
             # g_loss = ad_loss(self.D(gen_imgs), real_label) + pixel_loss(gen_imgs, vi_imgs)
             g_loss = ad_loss(self.D(gen_imgs), real_label)
             # g_loss = pixel_loss(gen_imgs, vi_imgs)
-
             # 先训练生成器
             self.optimizer_AE.zero_grad()
             g_loss.backward()
             self.optimizer_AE.step()
+
             # 定义辨别器损失
             real_loss = ad_loss(self.D(vi_imgs), real_label)
             fake_loss = ad_loss(self.D(gen_imgs.detach()), fake_label)
@@ -81,14 +86,20 @@ class Rebuilder:
             d_loss.backward()
             self.optimizer_D.step()
 
+            # 可视化loss
+            self.writer.add_scalars("loss", {"g_loss": g_loss,
+                                             "d_loss": d_loss}, (epoch + 1))
+
             # 计算精度
             Acc = accuracy(self.D(gen_imgs), 0, self.device) + accuracy(self.D(vi_imgs), 1, self.device)
             metric.add(Acc / 2, vi_imgs.shape[0])
 
-            # 保存生成的图片
+            # 可视化生成的图片
             if (epoch + 1) % 50 == 0:
-                save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
-                save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
+                vi_imgs_show = vutils.make_grid(vi_imgs)
+                gen_imgs_show = vutils.make_grid(gen_imgs)
+                self.writer.add_image("vi_imgs", vi_imgs_show, (epoch + 1))
+                self.writer.add_image("gen_imgs", gen_imgs_show, (epoch + 1))
 
             return g_loss.item(), d_loss.item()
 
@@ -124,13 +135,11 @@ class Rebuilder:
             pin_memory=self.cuda,
             drop_last=True)
 
-        # 可视化
-        animator = Animator(xlabel='epoch', xlim=[1, self.cfg.epoch_num], ylim=[0.0, 1.0],
-                            legend=['train acc', 'test acc'])
-        metric = Accumulator(2)
-
         # 训练
         for epoch in range(self.cfg.epoch_num):
+            # 可视化
+            metric = Accumulator(2)
+
             for i, (vi_imgs, _) in enumerate(train_dataloader):
                 vi_imgs = vi_imgs.to(self.device)
                 (g_loss, d_loss) = self.train_step(vi_imgs, epoch, metric)
@@ -147,11 +156,8 @@ class Rebuilder:
 
             if (epoch + 1) % 20 == 0:
                 test_acc = evaluate_accuracy(self.AE, self.D, test_dataloader, self.device)
-                animator.add(epoch + 1, (metric[0] / metric[1], test_acc))
-
-        # 保存图片
-        # plt.show()
-        plt.savefig("../../Result/acc")
+                self.writer.add_scalars("acc", {"test_acc": test_acc,
+                                                "train_acc": metric[0] / metric[1]}, (epoch+1))
 
     def parse_args(self, **kwargs):
         # 参数设置
