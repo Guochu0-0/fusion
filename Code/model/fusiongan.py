@@ -57,7 +57,7 @@ class FusionGan:
                                       betas=(self.cfg.b1, self.cfg.b2))
 
         # 可视化
-        self.writer = SummaryWriter(os.path.jion("..", "..", "Results"))
+        self.writer = SummaryWriter(os.path.join("..", "..", "Results"))
 
     def train_step(self, vi_imgs, ir_imgs, epoch, metric, backward=True):
         self.G.train(backward)
