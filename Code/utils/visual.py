@@ -55,8 +55,8 @@ class Animator:
         for x, y, fmt in zip(self.X, self.Y, self.fmts):
             self.axes[0].plot(x, y, fmt)
         self.config_axes()
-        display.display(self.fig)
-        display.clear_output(wait=True)
+        #display.display(self.fig)
+        #display.clear_output(wait=True)
 
 
 class Accumulator:
@@ -123,5 +123,5 @@ def evaluate_accuracy1(G, D, data_iter, device):
             ir_imgs = ir_imgs.to(device)
             cat_imgs = torch.cat([vi_imgs, ir_imgs], 1)
             metric.add(accuracy(D(vi_imgs), 1, device), vi_imgs.shape[0])
-            metric.add(accuracy(D(G(cat_imgs, ir_imgs)), 0, device), vi_imgs.shape[0])
+            metric.add(accuracy(D(G(cat_imgs)), 0, device), vi_imgs.shape[0])
     return metric[0] / metric[1]
