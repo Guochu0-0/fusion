@@ -44,7 +44,8 @@ class FusionGan:
 
         # 定义损失函数
         self.G_Loss1 = ContentLoss1(5, self.device)
-        self.Ad_Loss = torch.nn.BCELoss()
+        #self.Ad_Loss = torch.nn.BCELoss()
+        self.Ad_Loss = torch.nn.MSELoss()
 
         # 定义优化器
         self.optimizer_G = optim.Adam(self.G.parameters(), lr=self.cfg.lr, betas=(self.cfg.b1, self.cfg.b2))
@@ -135,7 +136,7 @@ class FusionGan:
         for epoch in range(self.cfg.epoch_num):
             for i, (vi_imgs, ir_imgs) in enumerate(train_dataloader):
                 vi_imgs = vi_imgs.to(self.device)
-                ir_imgs = vi_imgs.to(self.device)
+                ir_imgs = ir_imgs.to(self.device)
 
                 (g_ct_loss, g_ad_loss ,d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
                 print('Epoch: {} [{}/{}] G_CT_Loss: {:.5f} G_AD_Loss: {:.5f} D_Loss: {:.5f}'.format(
