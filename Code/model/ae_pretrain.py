@@ -4,10 +4,12 @@ import sys
 import torch
 from h5py.h5d import namedtuple
 from matplotlib import pyplot as plt
+from tensorboardX import SummaryWriter
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import transforms
+import torchvision.utils as vutils
 from torchvision.utils import save_image
 
 from Code.data.mydataset import MyDataset
@@ -41,6 +43,10 @@ class AE_pretrainer:
 
         # 定义优化器
         self.optimizer_AE = optim.Adam(self.AE.parameters(), lr=self.cfg.lr, betas=(self.cfg.b1, self.cfg.b2))
+
+        # 可视化
+        self.writer = SummaryWriter(os.path.join("..", "..", "Results", "ae_pretrain"))
+
     def train_step(self, vi_imgs, epoch, backward=True):
         self.AE.train(backward)
 
@@ -56,12 +62,15 @@ class AE_pretrainer:
             g_loss.backward()
             self.optimizer_AE.step()
 
-            # 计算精度
+            # 可视化损失
+            self.writer.add_scalar("g_loss", g_loss, epoch+1)
 
-            # 保存生成的图片
+            # 可视化生成的图片
             if (epoch + 1) % 50 == 0:
-                save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
-                save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
+                vi_imgs_show = vutils.make_grid(vi_imgs)
+                gen_imgs_show = vutils.make_grid(gen_imgs)
+                self.writer.add_image("vi_imgs", vi_imgs_show, (epoch + 1))
+                self.writer.add_image("gen_imgs", gen_imgs_show, (epoch + 1))
 
             return g_loss.item()
 
