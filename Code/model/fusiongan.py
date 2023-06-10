@@ -7,8 +7,10 @@ from matplotlib import pyplot as plt
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+from tensorboardX import SummaryWriter
 from torchvision import transforms
 from torchvision.utils import save_image
+import torchvision.utils as vutils
 
 from Code.data.mydataset import MyDataset
 from Code.model import ops
@@ -54,6 +56,9 @@ class FusionGan:
         self.optimizer_D = optim.Adam(self.D.parameters(), lr=self.cfg.lr,
                                       betas=(self.cfg.b1, self.cfg.b2))
 
+        # 可视化
+        self.writer = SummaryWriter(os.path.jion("..", "..", "Results"))
+
     def train_step(self, vi_imgs, ir_imgs, epoch, metric, backward=True):
         self.G.train(backward)
         self.D.train(backward)
@@ -69,10 +74,16 @@ class FusionGan:
         with torch.set_grad_enabled(backward):
             # 定义生成器损失
             g_ad_loss = self.Ad_Loss(self.D(gen_imgs), real_label)
-            #g_ct_loss = self.G_Loss1(vi_imgs, ir_imgs, gen_imgs)
+            # g_ct_loss = self.G_Loss1(vi_imgs, ir_imgs, gen_imgs)
             g_pixel_loss = self.G_Loss1(gen_imgs, ir_imgs)
             g_gradient_loss = self.G_Loss2(vi_imgs, gen_imgs)
-            g_loss = g_ad_loss + g_pixel_loss + self.cfg.k1*g_gradient_loss
+            g_loss = g_ad_loss + g_pixel_loss + self.cfg.k1 * g_gradient_loss
+
+            # 可视化loss
+            self.writer.add_scalars("loss", {"g_ad_loss": g_ad_loss,
+                                             "g_pixel_loss": g_pixel_loss,
+                                             "g_gradient_loss": g_gradient_loss}, (epoch + 1))
+
             # 先训练生成器
             self.optimizer_G.zero_grad()
             g_loss.backward()
@@ -91,13 +102,16 @@ class FusionGan:
             Acc = accuracy(self.D(gen_imgs), 0, self.device) + accuracy(self.D(vi_imgs), 1, self.device)
             metric.add(Acc / 2, vi_imgs.shape[0])
 
-            # 保存生成的图片
+            # 可视化生成的图片
             if (epoch + 1) % 50 == 0:
-                save_image(vi_imgs.data[:25], "../../Data/Vi_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
-                save_image(ir_imgs.data[:25], "../../Data/Ir_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
-                save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
+                vi_imgs_show = vutils.make_grid(vi_imgs)
+                ir_imgs_show = vutils.make_grid(ir_imgs)
+                gen_imgs_show = vutils.make_grid(gen_imgs)
+                self.writer.add_image("vi_imgs", vi_imgs_show, (epoch + 1))
+                self.writer.add_image("ir_imgs", ir_imgs_show, (epoch + 1))
+                self.writer.add_image("gen_imgs", gen_imgs_show, (epoch + 1))
 
-            return g_pixel_loss.item(), g_gradient_loss.item(), g_ad_loss.item(), d_loss.item()
+            return g_loss.item(), d_loss.item()
 
     @torch.enable_grad()
     def train_over(self, save_dir='../../checkpoint'):
@@ -131,20 +145,17 @@ class FusionGan:
             pin_memory=self.cuda,
             drop_last=True)
 
-        # 可视化
-        animator = Animator(xlabel='epoch', xlim=[1, self.cfg.epoch_num], ylim=[0.0, 1.0],
-                            legend=['train acc', 'test acc'])
-        metric = Accumulator(2)
-
         # 训练
         for epoch in range(self.cfg.epoch_num):
             for i, (vi_imgs, ir_imgs) in enumerate(train_dataloader):
                 vi_imgs = vi_imgs.to(self.device)
                 ir_imgs = ir_imgs.to(self.device)
 
-                (g_p_loss, g_g_loss, g_ad_loss, d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
-                print('Epoch: {} [{}/{}] G_P_Loss: {:.5f} G_G_Loss: {:.5f} G_AD_Loss: {:.5f} D_Loss: {:.5f}'.format(
-                    epoch + 1, i + 1, len(train_dataloader), g_p_loss, g_g_loss, g_ad_loss, d_loss))
+                # 可视化
+                metric = Accumulator(2)
+                (g_loss, d_loss) = self.train_step(vi_imgs, ir_imgs, epoch, metric)
+                print('Epoch: {} [{}/{}] G_Loss: {:.5f} D_Loss: {:.5f}'.format(
+                    epoch + 1, i + 1, len(train_dataloader), g_loss, d_loss))
                 sys.stdout.flush()
 
             if (epoch + 1) % 50 == 0:
@@ -156,11 +167,8 @@ class FusionGan:
 
             if (epoch + 1) % 20 == 0:
                 test_acc = evaluate_accuracy1(self.G, self.D, test_dataloader, self.device)
-                animator.add(epoch + 1, (metric[0] / metric[1], test_acc))
-
-        # 保存图片
-        # plt.show()
-        plt.savefig("../../Result/acc")
+                self.writer.add_scalars("acc", {"test_acc": test_acc,
+                                                "train_acc": metric[0] / metric[1]}, (epoch+1))
 
     def parse_args(self, **kwargs):
         # 参数设置
@@ -173,7 +181,7 @@ class FusionGan:
             'b1': 0.5,
             'b2': 0.999,
             # pixel loss 和 gradient loss之间的比例
-            'k1': 5,}
+            'k1': 5, }
 
         for key, val in kwargs.items():
             if key in cfg:
