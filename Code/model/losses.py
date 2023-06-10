@@ -10,9 +10,10 @@ class ContentLoss1(nn.Module):
     梯度使用的是laplace算符实现的。
     """
 
-    def __init__(self, _lambda):
+    def __init__(self, _lambda, device):
         super(ContentLoss1, self).__init__()
         self._lambda = _lambda
+        self.device = device
 
     def forward(self, img_vi, img_ir, img_fu):
         gradient_loss = (self._gradient(img_fu) - self._gradient(img_vi)).square().mean()
@@ -22,7 +23,7 @@ class ContentLoss1(nn.Module):
     def _gradient(self, img):
         laplace_filter = torch.Tensor([[[[0, -1, 0],
                                          [-1, 4, -1],
-                                         [0, -1, 0]]]])
+                                         [0, -1, 0]]]]).to(self.device)
 
         out = F.conv2d(img, laplace_filter, stride=2, padding=1)
         return out

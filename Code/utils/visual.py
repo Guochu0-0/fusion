@@ -103,5 +103,25 @@ def evaluate_accuracy(AE, D, data_iter, device):
         for i, (vi_imgs, _) in enumerate(data_iter):
             vi_imgs = vi_imgs.to(device)
             metric.add(accuracy(D(vi_imgs), 1, device), vi_imgs.shape[0])
-            metric.add(accuracy(D(AE(vi_imgs)), 1, device), vi_imgs.shape[0])
+            metric.add(accuracy(D(AE(vi_imgs)), 0, device), vi_imgs.shape[0])
+    return metric[0] / metric[1]
+
+def evaluate_accuracy1(G, D, data_iter, device):
+    """
+    fusion_gan
+    计算在指定数据集上模型的精度
+    """
+    if isinstance(G, torch.nn.Module):
+        G.eval()  # 将模型设置为评估模式
+    if isinstance(D, torch.nn.Module):
+        D.eval()
+
+    metric = Accumulator(2)  # 正确预测数、预测总数
+    with torch.no_grad():
+        for i, (vi_imgs, ir_imgs) in enumerate(data_iter):
+            vi_imgs = vi_imgs.to(device)
+            ir_imgs = ir_imgs.to(device)
+            cat_imgs = torch.cat([vi_imgs, ir_imgs], 1)
+            metric.add(accuracy(D(vi_imgs), 1, device), vi_imgs.shape[0])
+            metric.add(accuracy(D(G(cat_imgs, ir_imgs)), 0, device), vi_imgs.shape[0])
     return metric[0] / metric[1]

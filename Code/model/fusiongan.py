@@ -14,7 +14,7 @@ from Code.data.mydataset import MyDataset
 from Code.model import ops
 from Code.model.backbones import Generator_FusionGan, Discriminator_FusionGan
 from Code.model.losses import ContentLoss1, PixelLoss
-from Code.utils.visual import evaluate_accuracy, Accumulator, Animator, accuracy
+from Code.utils.visual import evaluate_accuracy, Accumulator, Animator, accuracy, evaluate_accuracy1
 
 
 class FusionGan:
@@ -43,7 +43,7 @@ class FusionGan:
         self.D = self.D.to(self.device)
 
         # 定义损失函数
-        self.G_Loss1 = ContentLoss1(5)
+        self.G_Loss1 = ContentLoss1(5, self.device)
         self.Ad_Loss = torch.nn.BCELoss()
 
         # 定义优化器
@@ -92,7 +92,7 @@ class FusionGan:
                 save_image(ir_imgs.data[:25], "../../Data/Ir_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
                 save_image(gen_imgs.data[:25], "../../Data/Gen_imgs/%d.png" % (epoch + 1), nrow=5, normalize=True)
 
-            return g_loss.item(), d_loss.item()
+            return g_ct_loss.item(), g_ad_loss.item(), d_loss.item()
 
     @torch.enable_grad()
     def train_over(self, save_dir='../../checkpoint'):
@@ -151,7 +151,7 @@ class FusionGan:
                 torch.save(self.D.state_dict(), D_path)
 
             if (epoch + 1) % 20 == 0:
-                test_acc = evaluate_accuracy(self.G, self.D, test_dataloader, self.device)
+                test_acc = evaluate_accuracy1(self.G, self.D, test_dataloader, self.device)
                 animator.add(epoch + 1, (metric[0] / metric[1], test_acc))
 
         # 保存图片
